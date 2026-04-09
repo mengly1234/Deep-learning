@@ -266,16 +266,6 @@ yolov10在训练的时候包含两个结构相同，但是参数不同的head，
 
 
 
-#### 为什么训练的时候要使用两个检测头，以及为什么推理的时候只是用one-to-one的检测头就能够达到不错的效果？
-
-one-to-many label assign需要NMS进行后处理，影响部署的速度，one-to-one label assign会带来额外的推理开销且效果不好。在训练的过程中会使用one-to-many的检测头来指导one-to-one的检测头，先分别计算损失，然后使用1-Wasserstein distance来最小化两个检测头的损失距离，从而使one-to-one的分类效果逼近one-to-many。
-
-
-
-#### 为什么可以去除NMS，而且模型输出的结果也有上百个检测框？（yolo26）
-
-
-
 # yolov11
 
 ## backbone
@@ -320,7 +310,7 @@ one-to-many label assign需要NMS进行后处理，影响部署的速度，one-t
 
 ### 一、YOLO-World整体结构：
 
-![image-20251024112712798](C:\Users\86188\AppData\Roaming\Typora\typora-user-images\image-20251024112712798.png)
+<img src="\imgs\image-20251024112712798.png" alt="image-20251024112712798" style="zoom:70%;" />
 
 
 
@@ -354,13 +344,13 @@ one-to-many label assign需要NMS进行后处理，影响部署的速度，one-t
 
 **Re-parameterizable Vision-Language PAN**
 
-![image-20251027100319467](C:\Users\86188\AppData\Roaming\Typora\typora-user-images\image-20251027100319467.png)
+<img src=".\imgs\image-20251027100319467.png" alt="image-20251027100319467" style="zoom:60%;" />
 
 - Text-guided CSPLayer ： 
 
 通过下面的公式，融合文本特征和多尺度图像特征：
 
-![image-20251027143030429](C:\Users\86188\AppData\Roaming\Typora\typora-user-images\image-20251027143030429.png)
+<img src="\imgs\image-20251027143030429.png" alt="image-20251027143030429" style="zoom:60%;" />
 
 其中$X_{l}^{'} = X_{l}*\delta(max_{j \in \{1..C\}}(X_{l}W_{j}^{T})^{T}$
 
@@ -370,8 +360,59 @@ one-to-many label assign需要NMS进行后处理，影响部署的速度，one-t
 
 # yolo26
 
+#### 创新点：
+
+- 移除DFL（分布焦点损失），简化了边界框预测逻辑，提升了硬件兼容性，解决了超大目标检测的可靠性问题。
+- 原生的端对端模型，直接生成预测结果，无需非极大抑制。
+- 引入MuSGD优化器，增强稳定性，收敛更快。
+- ProgLoss+STAL，提升了小目标检测的精度。
+- CPU推理速度提升了高达43%。
 
 
+
+#### 为什么训练的时候要使用两个检测头，以及为什么推理的时候只是用one-to-one的检测头就能够达到不错的效果？
+
+​		one-to-many label assign需要NMS进行后处理，影响部署的速度，one-to-one label assign会带来额外的推理开销且效果不好。在训练的过程中会使用one-to-many的检测头来指导one-to-one的检测头，先分别计算损失，然后使用1-Wasserstein distance来最小化两个检测头的损失距离，从而使one-to-one的分类效果逼近one-to-many。
+
+```
+one-to-many：
+​ 一个真实目标会被分配给多个预测框作为正样本，用来提供丰富的监督信息，提高模型的检测能力。
+
+one-to-one：
+​ 一个真实目标只会分配给一个预测框作为正样本，其他的预测框都被当作成负样本，从来达到在训练的过程中就抑制了多个预测框出现的情况。
+（同yolov10）
+```
+
+
+
+# AFSS
+
+```
+相关工作：
+在不改变检测器结构的前提下提升目标检测器的训练效率，研究方向可分为三类：
+1、curriculum and self-paced learning：按照样本难度对数据进行组织，逐步引入难度更高的样本，但这种方法近优化了学习顺序，无法保证模型持续接触高信息量样本。
+2、dataset pruning：利用早期损失或梯度统计量剔除冗余或者低价值图像来实现训练加速，但图像一旦剔除就无法再次参与训练。
+3、dataset distillation：通过合成少量人工图像来近似原始数据集的分布特性，从而进一步降低训练开销，但该范式需要借助复杂的双层优化与生成模型进行额外的数据合成。
+```
+
+#### 方法：
+
+第 t 轮的迭代流程：
+
+​	根据 t-1 轮学习的准确度与召回率评估每张训练图像，分成简单、中等、困难三个等级
+
+- 简单等级以最低频率参与训练，并周期性灰菇，以避免灾难性遗忘
+- 中等图像以中等频率参与训练，保持短期全覆盖，确保每张图像至少三轮内重新出现一次
+- 困难样本全程参与训练
+
+筛选出来的图像参与第 t 轮训练。
+
+
+
+学习充分度指标：
+$$
+I_{i} = min (P_{i}, R_{i})
+$$
 
 
 
